@@ -1,0 +1,89 @@
+import hudson.cli.CLI
+
+buildscript {
+    repositories {
+        maven {
+            url 'http://repo.jenkins-ci.org/public'
+        }
+        mavenCentral()
+    }
+    dependencies {
+        classpath "org.jenkins-ci.main:cli:${jenkinsVersion}"
+    }
+}
+
+apply plugin: 'groovy'
+apply plugin: 'idea'
+apply plugin: 'eclipse'
+
+repositories {
+    maven {
+        url 'http://repo.jenkins-ci.org/public'
+    }
+    mavenCentral()
+}
+
+sourceSets {
+    main {
+        groovy {
+            srcDirs = ['src/script', 'src/postbuild', 'src/job-dsl']
+        }
+    }
+}
+
+dependencies {
+    compile "org.jenkins-ci.main:jenkins-war:${jenkinsVersion}:war-for-test"
+
+    compile "org.jenkins-ci.plugins:script-security:1.13@jar"
+    compile "org.jenkins-ci.plugins:translation:1.10@jar"
+    compile "org.jenkins-ci.plugins:ssh-slaves:1.9@jar"
+    compile "org.jenkins-ci.plugins:cvs:2.11@jar"
+    compile "org.jenkins-ci.plugins:ssh-credentials:1.10@jar"
+    compile "org.jenkins-ci.plugins:matrix-auth:1.1@jar"
+    compile "org.jenkins-ci.plugins:javadoc:1.1@jar"
+    compile "org.jenkins-ci.plugins:matrix-project:1.4.1@jar"
+    compile "org.jenkins-ci.plugins:junit:1.2-beta-4@jar"
+    compile "org.jenkins-ci.plugins:external-monitor-job:1.4@jar"
+    compile "org.jenkins-ci.plugins:subversion:1.54@jar"
+    compile "org.jenkins-ci.plugins:ant:1.2@jar"
+    compile "org.jenkins-ci.plugins:pam-auth:1.1@jar"
+    compile "org.jenkins-ci.plugins:ldap:1.6@jar"
+    compile "org.jenkins-ci.plugins:credentials:1.18@jar"
+    compile "org.jenkins-ci.plugins:windows-slaves:1.0@jar"
+    compile "org.jenkins-ci.main:maven-plugin:2.7.1@jar"
+    compile "org.jenkins-ci.plugins:antisamy-markup-formatter:1.1@jar"
+    compile "org.jenkins-ci.plugins:mailer:1.11@jar"
+}
+
+def cli = { script ->
+    def c = new CLI(new URL(jenkinsUrl))
+    try {
+        c.execute(['groovy', script.absolutePath], System.in, System.out, System.out)
+    } finally {
+        c?.close()
+    }
+}
+
+def scriptFiles = file('src/script').listFiles(({ it.file && it.name.endsWith('.groovy') } as FileFilter))
+
+task run << {
+    if (scriptFiles) {
+        println 'Choose script:'
+        scriptFiles.eachWithIndex { f, i ->
+            println "${i}: ${f.name}"
+        }
+        def scriptNo = System.console().readLine('\n> Choose a number: ')
+        if (scriptNo.isNumber()) {
+            cli scriptFiles[scriptNo.toInteger()]
+        }
+    } else {
+        println 'No scripts.'
+    }
+}
+
+scriptFiles.each { file ->
+    def taskName = file.name - '.groovy'
+    task "run-$taskName" << {
+        cli file
+    }
+}
