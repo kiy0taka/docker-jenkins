@@ -1,4 +1,4 @@
-FROM jenkins
+FROM jenkins/jenkins:lts
 MAINTAINER Kiyotaka Oku
 
 USER root
